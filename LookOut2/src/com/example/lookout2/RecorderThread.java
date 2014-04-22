@@ -1,15 +1,21 @@
 package com.example.lookout2;
 
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
 import android.media.AudioFormat;
 import android.media.RingtoneManager;
 import android.net.Uri;
+import android.os.Handler;
 import android.os.Vibrator;
 import android.support.v4.app.NotificationCompat;
+import android.widget.Button;
+import android.widget.TextView;
 
 
 
@@ -61,6 +67,35 @@ public void run() {
 				float averageAbsValue = 0.0f;
 				float samMax = 0;
     
+				///////////////////////////////////////////////
+				int voiceFlag = 0;
+				
+				float[] Auto = new float[bufferSize];
+				
+				//auto-correlation.
+				for (int i = 0; i < bufferSize; i += 1){
+					int sum = 0;
+					for (int j = 0; j < bufferSize-i; j += 1){
+						sum += (int)(audioData[j]*audioData[j+i]);
+					}
+					Auto[i] = sum;
+				}
+				
+				System.out.println("first iter done");
+				
+				int thresh = 50; // threshold to check peaks in voice signals
+				int nPeaks = 0; // the number of peaks.
+				
+				for (int i = 1; i < bufferSize - 1; i += 1){
+					if (Auto[i] > thresh*Auto[i-1] && Auto[i] > thresh*Auto[i+1]){
+						nPeaks += 1;
+					}
+				}
+				
+				System.out.println("peaks : "+ nPeaks);
+				
+				///////////////////////////////////////////////
+				
 				for (int i = 0; i < bufferSize; i += 1) {
 					sample = (short)((audioData[i]));
 					totalAbsValue += Math.abs(sample);
@@ -83,9 +118,17 @@ public void run() {
 				System.out.println("val : "+ averageAbsValue);
 				for (int i = 0; i < bufferSize; i += 1) {
 					sample = (short)((audioData[i]));
-					if(Math.abs(sample) > 20*overallAvg)
+					if(Math.abs(sample) > 20*overallAvg) //current scale factor is 20.
 						{
-							System.out.println("123very loud");	
+							
+							if (averageAbsValue > 3*nPeaks){
+								voiceFlag = 1;
+							}
+							else{
+								voiceFlag = 0;
+							}						    
+						
+							System.out.println("loud input, Alert!");	
 							AudioManager am1 = (AudioManager)con.getSystemService(Context.AUDIO_SERVICE);
 							//Log.i("am1.isWiredHeadsetOn()", am1.isWiredHeadsetOn());
 							if(am1.isWiredHeadsetOn())
@@ -107,12 +150,23 @@ public void run() {
 								//notificationManager.notify(0, mBuilder.build());
 							}
 							
-							else { Vibrator v = (Vibrator)con.getSystemService(Context.VIBRATOR_SERVICE);
-							v.vibrate(400); }
+							else {
+								NotificationManager notificationManager = (NotificationManager) con.getSystemService(Context.NOTIFICATION_SERVICE);
+								NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(con.getApplicationContext()).setContentText("Hello"); 
+							        
+							     
+								Vibrator v = (Vibrator)con.getSystemService(Context.VIBRATOR_SERVICE);
+								if (voiceFlag == 1){
+								v.vibrate(800); 
+								}
+								else {
+									v.vibrate(100);
+								}
+							}
 						}
 					
 				}
-		
+				
 			}//else recorder started
 
 		} //while recording
@@ -123,6 +177,8 @@ public void run() {
 		recorder=null; //set the recorder to be garbage collected.
 
     }//run
+
+
 
 
 
